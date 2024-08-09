@@ -1,0 +1,89 @@
+---
+title: "LAB1"
+output: 
+  flexdashboard::flex_dashboard:
+    orientation: columns
+    vertical_layout: fill
+---
+
+
+```{r setup, include=FALSE}
+library(maps)
+library(flexdashboard)
+library(readr)
+library(dplyr)
+library(leaflet)
+library(crosstalk)
+library(DT)
+data <- read.csv("C:/Users/miche/OneDrive/Escritorio/DATA_PRODUCT/LABS/01_LAB/tienda (1).csv")
+```
+
+1. Utilidad: segmentar segun Product_ID, Product_Name con Sales y Profit y grafico
+2. Segmentacion: Segment, Sales y Profit. Solo grafica
+3. Geografia: Country, region, state, city con profit -> MAPA
+4. Analisis de entregas: eficiencia en tiempos y en geografía
+   Order_ID, Order_Date, Ship_Date, TIME, Ship_Mode, State, City y region -> graficar sin latitud y longitud
+   libreria posible lubridate
+   
+   Una pagina por dashboard
+   
+Requisitos
+El dashboard debe de contener
+Graficas
+Tablas
+Mapas
+En por lo menos un caso utilizar la librería crosstalk
+
+TABS - 3
+
+TASKS:
+1. Gráfico y tabla con productos más vendidos -> DANIEL
+2. Gráfico de barras (una sales y otra profit) por segmento -> DANIEL
+3. Mapa general -> DENISSE 
+4. Eficiencia de proceso por ciudad -> MICHELLE
+4.1 Ship Mode por ciudad -> MICHELLE 
+
+
+
+
+Column {data-width=650}
+-----------------------------------------------------------------------
+
+```{r}
+data <- data %>%
+  filter(!is.na(State) & !is.na(Product.Name))
+
+head(data$Profit.)
+
+data$Profits <- as.numeric(gsub(",", "", data$Profit.))
+head(data$Profits)
+```
+
+
+### Profit per product
+
+```{r}
+
+profit_by_state <- data %>%
+  group_by(State, Product.Name) %>%
+  summarise(Total.Profit = sum(Profits, na.rm = TRUE), .groups = "drop") %>%
+  arrange(desc(Total.Profit)) %>%
+  slice(1)
+
+```
+
+Column {data-width=350}
+-----------------------------------------------------------------------
+
+### Chart B
+
+```{r}
+
+```
+
+### Chart C
+
+```{r}
+
+```
+

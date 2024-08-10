@@ -1,8 +1,8 @@
 ---
-title: "LAB1"
+title: "Stores Analysis"
 output: 
   flexdashboard::flex_dashboard:
-    orientation: columns
+    orientation: rows
     vertical_layout: fill
 ---
 
@@ -15,9 +15,10 @@ library(dplyr)
 library(leaflet)
 library(crosstalk)
 library(DT)
-data <- read.csv("C:/Users/miche/OneDrive/Escritorio/DATA_PRODUCT/LABS/01_LAB/tienda (1).csv")
-```
+data <- read_csv("tienda (1).csv")
 
+```
+<!--
 1. Utilidad: segmentar segun Product_ID, Product_Name con Sales y Profit y grafico
 2. Segmentacion: Segment, Sales y Profit. Solo grafica
 3. Geografia: Country, region, state, city con profit -> MAPA
@@ -43,20 +44,23 @@ TASKS:
 4. Eficiencia de proceso por ciudad -> MICHELLE
 4.1 Ship Mode por ciudad -> MICHELLE 
 
-
+-->
 
 
 Column {data-width=650}
 -----------------------------------------------------------------------
 
 ```{r}
+
+data$ProductName <- (data$`Product Name`)
+
 data <- data %>%
-  filter(!is.na(State) & !is.na(Product.Name))
+  filter(!is.na(data$`Profit;`))
 
-head(data$Profit.)
+data$Profit <- as.numeric(gsub("[^0-9.-]", "", data$`Profit;`))
 
-data$Profits <- as.numeric(gsub(",", "", data$Profit.))
-head(data$Profits)
+head(data$Profit)
+
 ```
 
 
@@ -65,10 +69,12 @@ head(data$Profits)
 ```{r}
 
 profit_by_state <- data %>%
-  group_by(State, Product.Name) %>%
-  summarise(Total.Profit = sum(Profits, na.rm = TRUE), .groups = "drop") %>%
+  group_by(data$State, data$ProductName) %>%
+  summarise(Total.Profit = sum(data$Profit, na.rm = TRUE), .groups = "drop") %>%
   arrange(desc(Total.Profit)) %>%
   slice(1)
+
+head(profit_by_state)
 
 ```
 

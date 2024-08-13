@@ -15,6 +15,10 @@ library(dplyr)
 library(leaflet)
 library(crosstalk)
 library(DT)
+library(mapdata)
+library(ggplot2)
+library(plotly)
+
 data <- read_csv("tienda (1).csv")
 
 ```
@@ -47,8 +51,6 @@ TASKS:
 -->
 
 
-Column {data-width=650}
------------------------------------------------------------------------
 
 ```{r}
 
@@ -59,12 +61,11 @@ data <- data %>%
 
 data$Profit <- as.numeric(gsub("[^0-9.-]", "", data$`Profit;`))
 
-head(data$Profit)
 
 ```
+# Profit {data-icon=fa-money}
 
-
-### Profit per product
+### Profit per product {data-width=600}
 
 ```{r}
 
@@ -78,18 +79,78 @@ head(profit_by_state)
 
 ```
 
-Column {data-width=350}
------------------------------------------------------------------------
+# Delivery {data-icon=fa-truck}
 
-### Chart B
+### Delivery Efficiency {data-width=350}
 
 ```{r}
+data$Order_Date <- data$`Order Date`
+data$Ship_Date <- data$`Ship Date`
 
+data$Order_Date <- as.Date(data$Order_Date, format="%m/%d/%Y")
+data$Ship_Date <- as.Date(data$Ship_Date, format="%m/%d/%Y")
+
+
+data$Time_Difference <- as.numeric(data$Ship_Date - data$Order_Date)
+
+data <- data[!is.na(data$Time_Difference), ]
+
+efficiency_by_state <- data %>%
+  group_by(State) %>%
+  arrange(desc(Time_Difference)) %>%
+  slice(1) %>%
+  select(State, Time_Difference) %>%
+  arrange(desc(Time_Difference))
+
+# Display the result
+datatable(efficiency_by_state)
 ```
 
-### Chart C
+### Delivery per State {data-width=800}
 
 ```{r}
+data$Order_Date <- data$`Order Date`
+data$Ship_Date <- data$`Ship Date`
+
+data$Order_Date <- as.Date(data$Order_Date, format="%m/%d/%Y")
+data$Ship_Date <- as.Date(data$Ship_Date, format="%m/%d/%Y")
+
+
+data$Time_Difference <- as.numeric(data$Ship_Date - data$Order_Date)
+
+data <- data[!is.na(data$Time_Difference), ]
+
+efficiency_by_state <- data %>%
+  group_by(State) %>%
+  arrange(desc(Time_Difference)) %>%
+  slice(1) %>%
+  select(State, Time_Difference) %>%
+  arrange(desc(Time_Difference))
+
+# Load US state map data
+state_map <- map_data("state")
+
+# Convert state names to lowercase to match the `state_map` format
+efficiency_by_state <- efficiency_by_state %>%
+  mutate(State = tolower(State))
+
+# Merge with map data
+merged_data <- left_join(state_map, efficiency_by_state, by = c("region" = "State"))
+
+gg_map <- ggplot(data = merged_data) +
+  geom_polygon(aes(x = long, y = lat, group = group, fill = Time_Difference, 
+                   text = paste("State:", region, "<br>Time Difference:", Time_Difference)), 
+               color = "black") +
+  scale_fill_viridis_c() +
+  theme_minimal() +
+  labs(title = "Shipping Efficiency by State", fill = "Days") +
+  theme(legend.position = "bottom")
+
+# Convert ggplot to an interactive plotly object
+interactive_map <- ggplotly(gg_map, tooltip = "text")
+
+# Display the interactive map
+interactive_map
 
 ```
 

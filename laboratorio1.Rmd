@@ -153,63 +153,91 @@ interactive_map
 
 ```
 
-# Mapa {data-icon=fa-globe}
-### Profit por Estado
+# Map {data-icon=fa-globe}
+### Profit by State {data-width=800}
 
 ```{r}
+# DATA LIMPIA 
+profit_state <- data %>% 
+  group_by (State) %>%
+  summarise(Total_Profit = sum(Profit, na.rm = TRUE), .groups = "drop")
 
-#MINUSCULAS 
-profit_by_state <- data %>%
+profit_state <- profit_state[!is.na(profit_state$State), ]
+
+profit_state$Total_Profit <- as.numeric(gsub("\\.", "", profit_state$Total_Profit))
+
+profit_state$Total_Profit <- profit_state$Total_Profit / 1000000
+
+# CARGO MAPA USA
+state_map <- map_data("state")
+
+# MINUSCULAS 
+profit_state <- profit_state %>%
   mutate(State = tolower(State))
 
+# NUEVA DATA
+profit_state_data <- left_join(state_map, profit_state, by = c("region" = "State"))
 
-# CARGAR MAPA Y RENOMBRAR
-state_map2 <- map_data("state")
-state_map2 <- state_map2 %>%
-  rename(State = region)
-
-# NUEVA DATA 
-state_coords <- state_map2 %>%
-  group_by(State, group) %>%
-  summarise(lat = mean(lat), long = mean(long))
-
-profit_with_coords <- left_join(profit_by_state, state_coords, by = "State")
-
-profit_with_coords <- profit_with_coords %>%
-  group_by(State, lat, long, group) %>%
-  summarise(Total_Profit = sum(Profit, na.rm = TRUE), .groups = "drop") %>%
-  arrange(desc(Total_Profit))
-
-#### SOLO TIRA PUNTOS
-# Crear un mapa básico nuevamente con coloración
-gg_map <- ggplot(data = profit_with_coords_clean) +
-  geom_point(aes(x = long, y = lat, color = Total_Profit), size = 3) +
-  scale_color_viridis_c() +
-  theme_minimal() +
-  labs(title = "Total Profit by State", color = "Profit")
-
-# Mostrar el mapa de puntos
-print(gg_map)
-
-
-####NO FUNCIONA
-
-# CREAR MAPA
-gg_map2 <- ggplot(data = state_map2) +
+# MAPA 
+gg_map <- ggplot(data = profit_state_data) +
   geom_polygon(aes(x = long, y = lat, group = group, fill = Total_Profit, 
-                   text = paste("State:", State, "<br>Total Profit:", Total_Profit)), 
-               color = "black", data = profit_with_coords) +
+                   text = paste("State:", region, "<br>Total profit:", Total_Profit)), 
+               color = "black") +
   scale_fill_viridis_c() +
   theme_minimal() +
-  labs(title = "Total Profit by State", fill = "Profit") +
+  labs(title = "", fill = "Million $") +
   theme(legend.position = "bottom")
 
-# Convertir ggplot a un objeto interactivo plotly
-interactive_map2 <- ggplotly(gg_map2, tooltip = "text")
+interactive_map <- ggplotly(gg_map, tooltip = "text")
 
-# Mostrar el mapa interactivo
-interactive_map2
+interactive_map
 
 ```
 
+### Data by State {data-width=350}
+``` {r}
+# PRODUCTO MAS VENDIDO 
+most_sold_product_by_state <- data %>%
+  group_by(State) %>%
+  summarise(ProductName = ProductName[which.max(Sales)], 
+            Total_Sales = max(Sales, na.rm = TRUE), .groups = "drop")
+  
+# NUEVA DATA 
+most_sold_product_by_state <- most_sold_product_by_state %>%
+  mutate(State = tolower(State))
 
+data_by_state <- left_join(profit_state, most_sold_product_by_state %>% select(State, ProductName), by = "State")
+
+data_by_state <- data_by_state %>%
+  rename("Profit (in Millions)" = Total_Profit)
+
+data_by_state <- data_by_state %>%
+  rename("Best selling product" = ProductName)
+
+data_by_state <- data_by_state %>%
+  mutate(across(where(is.character), ~iconv(., from = "latin1", to = "UTF-8")))
+
+# DATATABLE AJUSTADA
+
+datatable(
+  data_by_state,
+  options = list(
+    dom = 'f',  
+    autoWidth = TRUE,  
+    pageLength = 10  
+  ),
+  class = 'compact' 
+) %>% 
+  formatStyle(
+    columns = names(data_by_state), 
+    fontSize = '12px'  
+  )%>%
+  formatStyle(
+    columns = colnames(data_by_state), 
+    fontSize = '12px',  
+    fontWeight = 'bold'  
+  )
+
+
+
+```

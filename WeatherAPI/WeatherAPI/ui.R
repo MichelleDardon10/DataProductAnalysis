@@ -1,21 +1,60 @@
 library(shiny)
 
 shinyUI(fluidPage(
-  titlePanel("Weather Dashboard"),
   
-  sidebarLayout(
-    sidebarPanel(
-      # Dynamic inputs for latitude and longitude
-      textInput("lat", "Latitude", value = "14.63"),   # Default latitude
-      textInput("lon", "Longitude", value = "-90.50"), # Default longitude
-      actionButton("get_weather", "Get Weather")
+  # Add custom CSS for styling
+  tags$head(
+    tags$style(HTML("
+      .table-bordered {
+        border: 2px solid #4CAF50;  /* Green border for the table */
+        border-radius: 8px;         /* Rounded corners */
+        padding: 10px;              /* Padding inside the table */
+      }
+      .table th {
+        background-color: #4CAF50;  /* Green background for headers */
+        color: white;               /* White text for headers */
+        font-weight: bold;          /* Bold header text */
+      }
+      .table td {
+        padding: 8px;               /* Padding for table data cells */
+      }
+      .title {
+        font-size: 24px;            /* Larger font for title */
+        font-weight: bold;          /* Bold text */
+        color: #4CAF50;             /* Green color for the title */
+        text-align: center;         /* Centered title */
+        margin-bottom: 20px;        /* Space below the title */
+      }
+    "))
+  ),
+  
+  # Main content with titles and tables
+  div("Weather Dashboard", class = "title"),  # Corrected title with styling
+  
+  fluidRow(
+    column(6,  # Left side for current weather
+           wellPanel(
+             textInput("lat", "Latitude (Current Weather)", value = "14.63"),   # Default latitude (Guatemala City)
+             textInput("lon", "Longitude (Current Weather)", value = "-90.5"),  # Default longitude (Guatemala City)
+             actionButton("get_weather", "Get Weather")
+           ),
+           tableOutput("weather_info")  # Output for current weather data
     ),
     
-    mainPanel(
-      tableOutput("weather_info")  # Output table instead of plain text
+    column(6,  # Right side for historical weather
+           wellPanel(
+             textInput("hist_lat", "Latitude (Historical Data)", value = "14.63"),   # Default latitude (Guatemala City)
+             textInput("hist_lon", "Longitude (Historical Data)", value = "-90.5"),  # Default longitude (Guatemala City)
+             dateInput("date", "Select a Date for Historical Data", value = Sys.Date() - 1, 
+                       min = Sys.Date() - 5, max = Sys.Date() - 1),  # Allow up to 5 days in the past
+             actionButton("get_history", "Get Historical Weather")
+           ),
+           tableOutput("history_info")  # Output for historical weather data
     )
   )
 ))
+
+
 
 
 #Guatemala City, Guatemala:

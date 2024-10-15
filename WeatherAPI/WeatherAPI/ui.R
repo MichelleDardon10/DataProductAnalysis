@@ -52,8 +52,31 @@ shinyUI(navbarPage(
                     tableOutput("history_info")  # Output for historical weather data
              )
            )
+  ),
+  
+  # New page for wind data
+  tabPanel("Wind Data",
+           fluidRow(
+             column(6,  # Left side for wind speed and direction
+                    wellPanel(
+                      textInput("wind_lat", "Latitude (Wind Data)", value = "14.63"),   # Default latitude (Guatemala City)
+                      textInput("wind_lon", "Longitude (Wind Data)", value = "-90.5"),  # Default longitude (Guatemala City),
+                      
+                      sliderInput("days", "Select the number of days (negative for past, positive for forecast):", 
+                                  min = -5, max = 5, value = 0, step = 1),  # Slider for days (from -5 to 5)
+                      
+                      actionButton("get_wind", "Get Wind Data")  # Button to get wind data
+                    ),
+                    tableOutput("wind_data")  # Output for wind speed and direction data
+             ),
+             
+             column(6,  # Right side for any future visualizations (e.g., wind direction chart)
+                    plotOutput("wind_plot")  # Placeholder for potential wind speed/direction visualizations
+             )
+           )
   )
 ))
+
 
 
 

@@ -1,10 +1,11 @@
 library(shiny)
 library(httr)
 library(jsonlite)
+library(ggplot2)
 
 shinyServer(function(input, output) {
   
-  # Reactive expression for current weather data
+  # Reactive expression for current weather data (working part, no changes)
   current_weather_data <- reactive({
     input$get_weather  # This triggers the reactivity
     isolate({
@@ -42,11 +43,25 @@ shinyServer(function(input, output) {
       response_hist <- GET(api_url_hist)
       
       if (status_code(response_hist) != 200) {
-        return(NULL)
+        return(NULL)  # If the status code isn't 200, return NULL
       }
       
+      # Parse the response into JSON format
       data_hist <- fromJSON(content(response_hist, "text", encoding = "UTF-8"))
-      return(data_hist$data)
+      
+      # Check if `data` is available and properly structured
+      if (is.null(data_hist$data)) {
+        return(NULL)  # If no data is found, return NULL
+      }
+      
+      # Ensure we handle the structure, checking if it's a list or a data frame
+      if (is.data.frame(data_hist$data)) {
+        return(data_hist$data)  # Directly return if it's a data frame
+      } else if (is.list(data_hist$data)) {
+        return(data_hist$data[[1]])  # Access the first element if it's a list
+      } else {
+        return(NULL)  # Handle any other unexpected structure
+      }
     })
   })
   
@@ -75,10 +90,10 @@ shinyServer(function(input, output) {
     hist_data <- historical_weather_data()
     
     if (input$get_history == 0 || is.null(hist_data)) {
-      return(NULL)  # Do not render table until button is pressed
+      return(NULL)  
     }
     
-    # Handle missing fields in historical data
+    # Extract the historical data fields (if available)
     temp <- ifelse(!is.null(hist_data$temp), hist_data$temp, NA)
     feels_like <- ifelse(!is.null(hist_data$feels_like), hist_data$feels_like, NA)
     humidity <- ifelse(!is.null(hist_data$humidity), hist_data$humidity, NA)
@@ -91,6 +106,7 @@ shinyServer(function(input, output) {
     # Convert temperature to Celsius
     hist_temp_celsius <- temp - 273.15
     
+    # Return the table of historical data
     data.frame(
       "Parameter" = c("Temperature (K)", "Temperature (°C)", "Feels Like", "Humidity", "Wind Speed", "Pressure", 
                       "Visibility", "UV Index", "Clouds"),
@@ -98,5 +114,132 @@ shinyServer(function(input, output) {
                   visibility, uvi, clouds)
     )
   })
+  
+#WIND DATA TAB
+  
+  library(shiny)
+  library(httr)
+  library(jsonlite)
+  library(ggplot2)
+  
+  shinyServer(function(input, output) {
+    
+    # Reactive expression for wind data based on slider
+    wind_data <- reactive({
+      input$get_wind  # This triggers reactivity
+      isolate({
+        lat <- input$wind_lat
+        lon <- input$wind_lon
+        day_offset <- input$days  # Slider value from -5 to 5
+        
+        # Calculate the date based on the slider (negative for past, positive for future)
+        selected_date <- Sys.Date() + day_offset
+        unix_time <- as.numeric(as.POSIXct(selected_date, tz = "UTC"))
+        
+        api_key <- "dca6484854b475187c5ca5dadf85278f"
+        if (day_offset < 0) {
+          # Historical data
+          api_url <- paste0("https://api.openweathermap.org/data/3.0/onecall/timemachine?lat=", lat,
+                            "&lon=", lon, "&dt=", unix_time, "&appid=", api_key)
+        } else {
+          # Forecast data
+          api_url <- paste0("https://api.openweathermap.org/data/3.0/onecall?lat=", lat,
+                            "&lon=", lon, "&appid=", api_key)
+        }
+        
+        response <- GET(api_url)
+        
+        # Log the status code to check if the request was successful
+        print(paste("API Status Code:", status_code(response)))
+        
+        if (status_code(response) != 200) {
+          return(NULL)
+        }
+        
+        wind_data <- fromJSON(content(response, "text", encoding = "UTF-8"))
+        
+        # Log the API response to see what data we are getting
+        print("API Response:")
+        print(wind_data)
+        
+        if (day_offset < 0) {
+          return(wind_data$data)  # For historical data
+        } else {
+          return(wind_data$hourly)  # For forecast data
+        }
+      })
+    })
+    
+    # Render wind data as a table
+    output$wind_data <- renderTable({
+      wind <- wind_data()
+      
+      # Log the wind data to check what is being processed
+      print("Processed Wind Data:")
+      print(wind)
+      
+      if (input$get_wind == 0 || is.null(wind)) {
+        return(NULL)
+      }
+      
+      # Safely extract wind data
+      extract_field <- function(x, field) {
+        if (is.list(x) && !is.null(x[[field]])) {
+          return(x[[field]])
+        }
+        return(NA)
+      }
+      
+      wind_speeds <- sapply(wind, function(x) extract_field(x, "wind_speed"))
+      wind_directions <- sapply(wind, function(x) extract_field(x, "wind_deg"))
+      timestamps <- sapply(wind, function(x) extract_field(x, "dt"))
+      
+      # Convert timestamps to POSIXct format
+      timestamps <- as.POSIXct(timestamps, origin = "1970-01-01", tz = "UTC")
+      
+      data.frame(
+        "Timestamp" = timestamps,
+        "Wind Speed (m/s)" = wind_speeds,
+        "Wind Direction (°)" = wind_directions
+      )
+    })
+    
+    # Render wind speed plot
+    output$wind_plot <- renderPlot({
+      wind <- wind_data()
+      
+      if (is.null(wind)) {
+        return(NULL)  # Do not generate the plot if there is no wind data
+      }
+      
+      # Safely extract wind data
+      extract_field <- function(x, field) {
+        if (is.list(x) && !is.null(x[[field]])) {
+          return(x[[field]])
+        }
+        return(NA)
+      }
+      
+      wind_speeds <- sapply(wind, function(x) extract_field(x, "wind_speed"))
+      timestamps <- sapply(wind, function(x) extract_field(x, "dt"))
+      
+      # Convert timestamps to POSIXct format
+      timestamps <- as.POSIXct(timestamps, origin = "1970-01-01", tz = "UTC")
+      
+      wind_data_df <- data.frame(Timestamp = timestamps, Wind_Speed = wind_speeds)
+      
+      ggplot(wind_data_df, aes(x = Timestamp, y = Wind_Speed)) +
+        geom_line(color = "blue") +
+        labs(title = "Wind Speed Over Time", x = "Timestamp", y = "Wind Speed (m/s)") +
+        theme_minimal()
+    })
+    
+  })
+  
+  
+  
+  
+  
+#FINAL DEL CODIGO NO TOCAR
   
 })

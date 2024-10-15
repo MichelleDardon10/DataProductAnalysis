@@ -1,119 +1,102 @@
 library(shiny)
 library(httr)
 library(jsonlite)
-library(lubridate)
 
 shinyServer(function(input, output) {
   
-  # Fetch current weather data when button is clicked
-  observeEvent(input$get_weather, {
-    
-    api_key <- "dca6484854b475187c5ca5dadf85278f"
-    lat <- input$lat
-    lon <- input$lon
-    
-    api_url <- paste0(
-      "https://api.openweathermap.org/data/3.0/onecall?lat=", lat,
-      "&lon=", lon,
-      "&appid=", api_key
-    )
-    
-    api_response <- GET(api_url)
-    
-    if (status_code(api_response) == 200) {
-      weather_data <- fromJSON(content(api_response, "text", encoding = "UTF-8"))
+  # Reactive expression for current weather data
+  current_weather_data <- reactive({
+    input$get_weather  # This triggers the reactivity
+    isolate({
+      lat <- input$lat
+      lon <- input$lon
       
-      if (!is.null(weather_data[["current"]])) {
-        current_weather <- weather_data[["current"]]
-        current_temp <- current_weather[["temp"]]
-        current_temp_celsius <- current_temp - 273.15
-        current_humidity <- current_weather[["humidity"]]
-        wind_speed <- current_weather[["wind_speed"]]
-        pressure <- current_weather[["pressure"]]
-        visibility <- current_weather[["visibility"]]
-        uvi <- current_weather[["uvi"]]
-        
-        weather_table <- data.frame(
-          Metric = c("Latitude", "Longitude", "Current Temperature", "Humidity", "Wind Speed", "Pressure", "Visibility", "UV Index"),
-          Value = c(lat, lon, 
-                    paste0(current_temp, " K (", round(current_temp_celsius, 2), " °C)"), 
-                    paste0(current_humidity, " %"), 
-                    paste0(wind_speed, " m/s"), 
-                    paste0(pressure, " hPa"), 
-                    paste0(visibility, " meters"), 
-                    uvi)
-        )
-        
-        output$weather_info <- renderTable({ weather_table })
-      } else {
-        output$weather_info <- renderText({ "Error: 'current' weather data not found." })
+      api_key <- "dca6484854b475187c5ca5dadf85278f"
+      api_url <- paste0("https://api.openweathermap.org/data/3.0/onecall?lat=", lat,
+                        "&lon=", lon, "&exclude=minutely,hourly,daily,alerts&appid=", api_key)
+      
+      response <- GET(api_url)
+      
+      if (status_code(response) != 200) {
+        return(NULL)
       }
-    } else {
-      output$weather_info <- renderText({ "Error: Unable to fetch weather data. Please check your API key or inputs." })
-    }
+      
+      weather_data <- fromJSON(content(response, "text", encoding = "UTF-8"))
+      return(weather_data$current)
+    })
   })
   
-  # Fetch historical weather data when button is clicked
-  observeEvent(input$get_history, {
-    
-    api_key <- "dca6484854b475187c5ca5dadf85278f"
-    lat <- input$hist_lat
-    lon <- input$hist_lon
-    
-    # Convert selected date to UNIX timestamp, set time to 12:00 PM UTC
-    selected_date <- as.POSIXct(input$date, tz = "UTC")
-    noon_time <- selected_date + hours(12)  # 12:00 PM UTC
-    unix_time <- as.numeric(noon_time)
-    
-    # Debugging: Print date, latitude, longitude, and API URL
-    print(paste0("Selected Date: ", input$date))
-    print(paste0("Latitude: ", lat))
-    print(paste0("Longitude: ", lon))
-    print(paste0("UNIX Timestamp: ", unix_time))
-    
-    # Make the API request for historical data
-    api_url <- paste0(
-      "https://api.openweathermap.org/data/3.0/onecall/timemachine?lat=", lat,
-      "&lon=", lon,
-      "&dt=", unix_time,
-      "&appid=", api_key
-    )
-    
-    api_response <- GET(api_url)
-    
-    if (status_code(api_response) == 200) {
-      # Parse the response content
-      history_data <- fromJSON(content(api_response, "text", encoding = "UTF-8"))
+  # Reactive expression for historical weather data
+  historical_weather_data <- reactive({
+    input$get_history  # This triggers the reactivity
+    isolate({
+      lat <- input$hist_lat
+      lon <- input$hist_lon
+      date <- input$date
       
-      # Access the first row of the `data` data frame
-      historical_weather <- history_data$data[1, ]  # Accessing the first row
+      unix_time <- as.numeric(as.POSIXct(date, tz = "UTC"))
+      api_key <- "dca6484854b475187c5ca5dadf85278f"
+      api_url_hist <- paste0("https://api.openweathermap.org/data/3.0/onecall/timemachine?lat=", lat,
+                             "&lon=", lon, "&dt=", unix_time, "&appid=", api_key)
       
-      # Extracting the fields from the data frame
-      hist_temp <- historical_weather$temp
-      hist_temp_celsius <- hist_temp - 273.15
-      hist_humidity <- historical_weather$humidity
-      hist_wind_speed <- historical_weather$wind_speed
-      hist_pressure <- historical_weather$pressure
-      hist_visibility <- historical_weather$visibility
-      hist_uvi <- historical_weather$uvi
+      response_hist <- GET(api_url_hist)
       
-      # Create a table with the historical weather data
-      history_table <- data.frame(
-        Metric = c("Latitude", "Longitude", "Temperature", "Humidity", "Wind Speed", "Pressure", "Visibility", "UV Index"),
-        Value = c(lat, lon, 
-                  paste0(hist_temp, " K (", round(hist_temp_celsius, 2), " °C)"), 
-                  paste0(hist_humidity, " %"), 
-                  paste0(hist_wind_speed, " m/s"), 
-                  paste0(hist_pressure, " hPa"), 
-                  paste0(hist_visibility, " meters"), 
-                  hist_uvi)
-      )
+      if (status_code(response_hist) != 200) {
+        return(NULL)
+      }
       
-      output$history_info <- renderTable({ history_table })
-      
-    } else {
-      # Display the HTTP status code and error message
-      output$history_info <- renderText({ paste("Error: Unable to fetch historical weather data. HTTP Status:", status_code(api_response)) })
-    }
+      data_hist <- fromJSON(content(response_hist, "text", encoding = "UTF-8"))
+      return(data_hist$data)
+    })
   })
+  
+  # Render current weather data only after the button is pressed
+  output$weather_info <- renderTable({
+    current_data <- current_weather_data()
+    
+    if (input$get_weather == 0 || is.null(current_data)) {
+      return(NULL)  # Do not render table until button is pressed
+    }
+    
+    # Convert temperature to Celsius
+    current_temp_celsius <- current_data$temp - 273.15
+    
+    data.frame(
+      "Parameter" = c("Temperature (K)", "Temperature (°C)", "Feels Like", "Humidity", "Wind Speed", "Pressure", 
+                      "Visibility", "UV Index", "Clouds"),
+      "Value" = c(current_data$temp, round(current_temp_celsius, 2), current_data$feels_like, 
+                  current_data$humidity, current_data$wind_speed, current_data$pressure, 
+                  current_data$visibility, current_data$uvi, current_data$clouds)
+    )
+  })
+  
+  # Render historical weather data only after the button is pressed
+  output$history_info <- renderTable({
+    hist_data <- historical_weather_data()
+    
+    if (input$get_history == 0 || is.null(hist_data)) {
+      return(NULL)  # Do not render table until button is pressed
+    }
+    
+    # Handle missing fields in historical data
+    temp <- ifelse(!is.null(hist_data$temp), hist_data$temp, NA)
+    feels_like <- ifelse(!is.null(hist_data$feels_like), hist_data$feels_like, NA)
+    humidity <- ifelse(!is.null(hist_data$humidity), hist_data$humidity, NA)
+    wind_speed <- ifelse(!is.null(hist_data$wind_speed), hist_data$wind_speed, NA)
+    pressure <- ifelse(!is.null(hist_data$pressure), hist_data$pressure, NA)
+    visibility <- ifelse(!is.null(hist_data$visibility), hist_data$visibility, NA)
+    uvi <- ifelse(!is.null(hist_data$uvi), hist_data$uvi, NA)
+    clouds <- ifelse(!is.null(hist_data$clouds), hist_data$clouds, NA)
+    
+    # Convert temperature to Celsius
+    hist_temp_celsius <- temp - 273.15
+    
+    data.frame(
+      "Parameter" = c("Temperature (K)", "Temperature (°C)", "Feels Like", "Humidity", "Wind Speed", "Pressure", 
+                      "Visibility", "UV Index", "Clouds"),
+      "Value" = c(temp, round(hist_temp_celsius, 2), feels_like, humidity, wind_speed, pressure, 
+                  visibility, uvi, clouds)
+    )
+  })
+  
 })

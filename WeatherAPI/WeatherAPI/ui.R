@@ -80,6 +80,10 @@ shinyUI(navbarPage(
 
 
 
+
+
+
+
 #Guatemala City, Guatemala:
 #Latitude: 14.634915
 #Longitude: -90.506882

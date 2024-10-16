@@ -117,14 +117,9 @@ shinyServer(function(input, output) {
   
 #WIND DATA TAB
   
-  library(shiny)
-  library(httr)
-  library(jsonlite)
-  library(ggplot2)
-  
   shinyServer(function(input, output) {
     
-    # Reactive expression for wind data based on slider
+    # Reactive expression to get the wind data
     wind_data <- reactive({
       input$get_wind  # This triggers reactivity
       isolate({
@@ -147,25 +142,22 @@ shinyServer(function(input, output) {
                             "&lon=", lon, "&appid=", api_key)
         }
         
+        # Make the API call
         response <- GET(api_url)
         
-        # Log the status code to check if the request was successful
-        print(paste("API Status Code:", status_code(response)))
-        
+        # Check if the request was successful
         if (status_code(response) != 200) {
           return(NULL)
         }
         
-        wind_data <- fromJSON(content(response, "text", encoding = "UTF-8"))
+        # Parse the response into JSON
+        weather_data <- fromJSON(content(response, "text", encoding = "UTF-8"))
         
-        # Log the API response to see what data we are getting
-        print("API Response:")
-        print(wind_data)
-        
+        # Handle historical or forecast data based on the slider
         if (day_offset < 0) {
-          return(wind_data$data)  # For historical data
+          return(weather_data$data)  # Historical data
         } else {
-          return(wind_data$hourly)  # For forecast data
+          return(weather_data$hourly)  # Forecast data
         }
       })
     })
@@ -174,28 +166,14 @@ shinyServer(function(input, output) {
     output$wind_data <- renderTable({
       wind <- wind_data()
       
-      # Log the wind data to check what is being processed
-      print("Processed Wind Data:")
-      print(wind)
-      
-      if (input$get_wind == 0 || is.null(wind)) {
-        return(NULL)
+      if (is.null(wind)) {
+        return(NULL)  # No data to show
       }
       
       # Safely extract wind data
-      extract_field <- function(x, field) {
-        if (is.list(x) && !is.null(x[[field]])) {
-          return(x[[field]])
-        }
-        return(NA)
-      }
-      
-      wind_speeds <- sapply(wind, function(x) extract_field(x, "wind_speed"))
-      wind_directions <- sapply(wind, function(x) extract_field(x, "wind_deg"))
-      timestamps <- sapply(wind, function(x) extract_field(x, "dt"))
-      
-      # Convert timestamps to POSIXct format
-      timestamps <- as.POSIXct(timestamps, origin = "1970-01-01", tz = "UTC")
+      wind_speeds <- sapply(wind, function(x) x[["wind_speed"]])
+      wind_directions <- sapply(wind, function(x) x[["wind_deg"]])
+      timestamps <- sapply(wind, function(x) as.POSIXct(x[["dt"]], origin = "1970-01-01", tz = "UTC"))
       
       data.frame(
         "Timestamp" = timestamps,
@@ -204,27 +182,17 @@ shinyServer(function(input, output) {
       )
     })
     
-    # Render wind speed plot
+    # Render a plot for wind speed
     output$wind_plot <- renderPlot({
       wind <- wind_data()
       
       if (is.null(wind)) {
-        return(NULL)  # Do not generate the plot if there is no wind data
+        return(NULL)
       }
       
-      # Safely extract wind data
-      extract_field <- function(x, field) {
-        if (is.list(x) && !is.null(x[[field]])) {
-          return(x[[field]])
-        }
-        return(NA)
-      }
-      
-      wind_speeds <- sapply(wind, function(x) extract_field(x, "wind_speed"))
-      timestamps <- sapply(wind, function(x) extract_field(x, "dt"))
-      
-      # Convert timestamps to POSIXct format
-      timestamps <- as.POSIXct(timestamps, origin = "1970-01-01", tz = "UTC")
+      # Extract wind data
+      wind_speeds <- sapply(wind, function(x) x[["wind_speed"]])
+      timestamps <- sapply(wind, function(x) as.POSIXct(x[["dt"]], origin = "1970-01-01", tz = "UTC"))
       
       wind_data_df <- data.frame(Timestamp = timestamps, Wind_Speed = wind_speeds)
       
@@ -233,9 +201,7 @@ shinyServer(function(input, output) {
         labs(title = "Wind Speed Over Time", x = "Timestamp", y = "Wind Speed (m/s)") +
         theme_minimal()
     })
-    
   })
-  
   
   
   

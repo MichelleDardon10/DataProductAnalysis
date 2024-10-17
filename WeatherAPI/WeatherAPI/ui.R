@@ -61,3 +61,27 @@ shinyUI(navbarPage(
            )
   )
 ))
+
+
+
+
+
+
+
+
+#Guatemala City, Guatemala:
+#Latitude: 14.634915
+#Longitude: -90.506882
+
+#Florida, USA:
+#Latitude: 27.9944024
+#Longitude: -81.7602544
+
+#Moscow, Russia:
+#Latitude: 55.751244
+#Longitude: 37.618423
+
+
+#Australia:
+#Latitude: -25.274398
+#Longitude: 133.775136

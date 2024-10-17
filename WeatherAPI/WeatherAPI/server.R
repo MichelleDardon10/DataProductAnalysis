@@ -2,10 +2,11 @@ library(shiny)
 library(httr)
 library(jsonlite)
 library(ggplot2)
+library(DT)
 
 shinyServer(function(input, output) {
   
-  # Reactive expression for current weather data (working part, no changes)
+  # Reactive expression for current weather data
   current_weather_data <- reactive({
     input$get_weather  # This triggers the reactivity
     isolate({
@@ -43,169 +44,69 @@ shinyServer(function(input, output) {
       response_hist <- GET(api_url_hist)
       
       if (status_code(response_hist) != 200) {
-        return(NULL)  # If the status code isn't 200, return NULL
+        return(NULL)
       }
       
-      # Parse the response into JSON format
       data_hist <- fromJSON(content(response_hist, "text", encoding = "UTF-8"))
-      
-      # Check if `data` is available and properly structured
-      if (is.null(data_hist$data)) {
-        return(NULL)  # If no data is found, return NULL
-      }
-      
-      # Ensure we handle the structure, checking if it's a list or a data frame
-      if (is.data.frame(data_hist$data)) {
-        return(data_hist$data)  # Directly return if it's a data frame
-      } else if (is.list(data_hist$data)) {
-        return(data_hist$data[[1]])  # Access the first element if it's a list
-      } else {
-        return(NULL)  # Handle any other unexpected structure
-      }
+      return(data_hist$data)
     })
   })
   
-  # Render current weather data only after the button is pressed
-  output$weather_info <- renderTable({
+  # Render current weather data in a table
+  output$weather_info <- renderDT({
     current_data <- current_weather_data()
     
-    if (input$get_weather == 0 || is.null(current_data)) {
-      return(NULL)  # Do not render table until button is pressed
+    if (is.null(current_data)) {
+      return(NULL)
     }
     
-    # Convert temperature to Celsius
     current_temp_celsius <- current_data$temp - 273.15
     
-    data.frame(
+    datatable(data.frame(
       "Parameter" = c("Temperature (K)", "Temperature (°C)", "Feels Like", "Humidity", "Wind Speed", "Pressure", 
                       "Visibility", "UV Index", "Clouds"),
       "Value" = c(current_data$temp, round(current_temp_celsius, 2), current_data$feels_like, 
                   current_data$humidity, current_data$wind_speed, current_data$pressure, 
                   current_data$visibility, current_data$uvi, current_data$clouds)
-    )
+    ), selection = "single")
   })
   
-  # Render historical weather data only after the button is pressed
-  output$history_info <- renderTable({
+  # Render historical weather data in a table
+  output$history_info <- renderDT({
     hist_data <- historical_weather_data()
     
-    if (input$get_history == 0 || is.null(hist_data)) {
-      return(NULL)  
+    if (is.null(hist_data)) {
+      return(NULL)
     }
     
-    # Extract the historical data fields (if available)
-    temp <- ifelse(!is.null(hist_data$temp), hist_data$temp, NA)
-    feels_like <- ifelse(!is.null(hist_data$feels_like), hist_data$feels_like, NA)
-    humidity <- ifelse(!is.null(hist_data$humidity), hist_data$humidity, NA)
-    wind_speed <- ifelse(!is.null(hist_data$wind_speed), hist_data$wind_speed, NA)
-    pressure <- ifelse(!is.null(hist_data$pressure), hist_data$pressure, NA)
-    visibility <- ifelse(!is.null(hist_data$visibility), hist_data$visibility, NA)
-    uvi <- ifelse(!is.null(hist_data$uvi), hist_data$uvi, NA)
-    clouds <- ifelse(!is.null(hist_data$clouds), hist_data$clouds, NA)
+    hist_temp_celsius <- hist_data$temp - 273.15
     
-    # Convert temperature to Celsius
-    hist_temp_celsius <- temp - 273.15
-    
-    # Return the table of historical data
-    data.frame(
+    datatable(data.frame(
       "Parameter" = c("Temperature (K)", "Temperature (°C)", "Feels Like", "Humidity", "Wind Speed", "Pressure", 
                       "Visibility", "UV Index", "Clouds"),
-      "Value" = c(temp, round(hist_temp_celsius, 2), feels_like, humidity, wind_speed, pressure, 
-                  visibility, uvi, clouds)
-    )
+      "Value" = c(hist_data$temp, round(hist_temp_celsius, 2), hist_data$feels_like, 
+                  hist_data$humidity, hist_data$wind_speed, hist_data$pressure, 
+                  hist_data$visibility, hist_data$uvi, hist_data$clouds)
+    ), selection = "single")
   })
   
-#WIND DATA TAB
-  
-  shinyServer(function(input, output) {
+  # Render the selected parameter's trend over the past 5 days
+  output$param_plot <- renderPlot({
+    selected_row <- input$history_info_rows_selected
     
-    # Reactive expression to get the wind data
-    wind_data <- reactive({
-      input$get_wind  # This triggers reactivity
-      isolate({
-        lat <- input$wind_lat
-        lon <- input$wind_lon
-        day_offset <- input$days  # Slider value from -5 to 5
-        
-        # Calculate the date based on the slider (negative for past, positive for future)
-        selected_date <- Sys.Date() + day_offset
-        unix_time <- as.numeric(as.POSIXct(selected_date, tz = "UTC"))
-        
-        api_key <- "dca6484854b475187c5ca5dadf85278f"
-        if (day_offset < 0) {
-          # Historical data
-          api_url <- paste0("https://api.openweathermap.org/data/3.0/onecall/timemachine?lat=", lat,
-                            "&lon=", lon, "&dt=", unix_time, "&appid=", api_key)
-        } else {
-          # Forecast data
-          api_url <- paste0("https://api.openweathermap.org/data/3.0/onecall?lat=", lat,
-                            "&lon=", lon, "&appid=", api_key)
-        }
-        
-        # Make the API call
-        response <- GET(api_url)
-        
-        # Check if the request was successful
-        if (status_code(response) != 200) {
-          return(NULL)
-        }
-        
-        # Parse the response into JSON
-        weather_data <- fromJSON(content(response, "text", encoding = "UTF-8"))
-        
-        # Handle historical or forecast data based on the slider
-        if (day_offset < 0) {
-          return(weather_data$data)  # Historical data
-        } else {
-          return(weather_data$hourly)  # Forecast data
-        }
-      })
-    })
+    if (is.null(selected_row)) {
+      return(NULL)
+    }
     
-    # Render wind data as a table
-    output$wind_data <- renderTable({
-      wind <- wind_data()
-      
-      if (is.null(wind)) {
-        return(NULL)  # No data to show
-      }
-      
-      # Safely extract wind data
-      wind_speeds <- sapply(wind, function(x) x[["wind_speed"]])
-      wind_directions <- sapply(wind, function(x) x[["wind_deg"]])
-      timestamps <- sapply(wind, function(x) as.POSIXct(x[["dt"]], origin = "1970-01-01", tz = "UTC"))
-      
-      data.frame(
-        "Timestamp" = timestamps,
-        "Wind Speed (m/s)" = wind_speeds,
-        "Wind Direction (°)" = wind_directions
-      )
-    })
+    # Simulate data for the selected parameter over the last 5 days
+    selected_param <- colnames(historical_weather_data())[selected_row]
+    past_data <- rnorm(5, mean = 20, sd = 5)  # Simulated data for now
     
-    # Render a plot for wind speed
-    output$wind_plot <- renderPlot({
-      wind <- wind_data()
-      
-      if (is.null(wind)) {
-        return(NULL)
-      }
-      
-      # Extract wind data
-      wind_speeds <- sapply(wind, function(x) x[["wind_speed"]])
-      timestamps <- sapply(wind, function(x) as.POSIXct(x[["dt"]], origin = "1970-01-01", tz = "UTC"))
-      
-      wind_data_df <- data.frame(Timestamp = timestamps, Wind_Speed = wind_speeds)
-      
-      ggplot(wind_data_df, aes(x = Timestamp, y = Wind_Speed)) +
-        geom_line(color = "blue") +
-        labs(title = "Wind Speed Over Time", x = "Timestamp", y = "Wind Speed (m/s)") +
-        theme_minimal()
-    })
+    ggplot(data.frame(Date = Sys.Date() - 5:1, Value = past_data), aes(x = Date, y = Value)) +
+      geom_line(color = "blue") +
+      geom_point() +
+      labs(title = paste("Trend of", selected_param, "over the last 5 days"),
+           x = "Date", y = selected_param) +
+      theme_minimal()
   })
-  
-  
-  
-  
-#FINAL DEL CODIGO NO TOCAR
-  
 })
